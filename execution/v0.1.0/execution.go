@@ -31,6 +31,7 @@ func GetEnvironment() (EnvironmentV010, error) {
 		PoolID:             os.Getenv("GARM_POOL_ID"),
 		ProviderConfigFile: os.Getenv("GARM_PROVIDER_CONFIG_FILE"),
 		InstanceID:         os.Getenv("GARM_INSTANCE_ID"),
+		InstanceName:       os.Getenv("GARM_INSTANCE_NAME"),
 	}
 
 	// If this is a CreateInstance command, we need to get the bootstrap params
@@ -54,6 +55,7 @@ type EnvironmentV010 struct {
 	PoolID             string
 	ProviderConfigFile string
 	InstanceID         string
+	InstanceName       string
 	BootstrapParams    params.BootstrapInstance
 }
 
@@ -141,7 +143,13 @@ func (e EnvironmentV010) Run(ctx context.Context, provider ExternalProvider) (st
 		}
 		ret = string(asJs)
 	case common.DeleteInstanceCommand:
-		if err := provider.DeleteInstance(ctx, e.InstanceID); err != nil {
+		var err error
+		if namedProvider, ok := provider.(NamedInstanceDeleter); ok {
+			err = namedProvider.DeleteInstanceWithName(ctx, e.InstanceID, e.InstanceName)
+		} else {
+			err = provider.DeleteInstance(ctx, e.InstanceID)
+		}
+		if err != nil {
 			return "", fmt.Errorf("failed to delete instance from provider: %w", err)
 		}
 	case common.RemoveAllInstancesCommand:

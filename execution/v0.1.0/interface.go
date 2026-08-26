@@ -25,3 +25,6 @@ type ExternalProvider interface {
 	// The common ExternalProvider interface
 	common.ExternalProvider
 }
+
+// NamedInstanceDeleter is the optional generation-aware delete capability.
+type NamedInstanceDeleter = common.NamedInstanceDeleter

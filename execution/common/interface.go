@@ -41,3 +41,11 @@ type ExternalProvider interface {
 	// GetVersion returns the version of the provider.
 	GetVersion(ctx context.Context) string
 }
+
+// NamedInstanceDeleter is an optional capability for providers whose backing
+// resources can be reused by multiple GARM runners over time. The runner name
+// identifies the allocation generation and lets the provider ignore a delayed
+// delete for an older allocation of the same backing resource.
+type NamedInstanceDeleter interface {
+	DeleteInstanceWithName(ctx context.Context, instanceID, instanceName string) error
+}

@@ -35,3 +35,6 @@ type ExternalProvider interface {
 	// GetExtraSpecsJSONSchema will return the JSON schema for the provider's extra specs.
 	GetExtraSpecsJSONSchema(ctx context.Context) (string, error)
 }
+
+// NamedInstanceDeleter is the optional generation-aware delete capability.
+type NamedInstanceDeleter = common.NamedInstanceDeleter

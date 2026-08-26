@@ -30,8 +30,14 @@ import (
 )
 
 type testExternalProvider struct {
-	mockErr      error
-	mockInstance params.ProviderInstance
+	mockErr         error
+	mockInstance    params.ProviderInstance
+	deletedInstance string
+}
+
+type testNamedExternalProvider struct {
+	testExternalProvider
+	deletedInstanceName string
 }
 
 func (e *testExternalProvider) CreateInstance(ctx context.Context, bootstrapParams params.BootstrapInstance) (params.ProviderInstance, error) {
@@ -41,11 +47,18 @@ func (e *testExternalProvider) CreateInstance(ctx context.Context, bootstrapPara
 	return e.mockInstance, nil
 }
 
-func (p *testExternalProvider) DeleteInstance(context.Context, string) error {
+func (p *testExternalProvider) DeleteInstance(_ context.Context, instance string) error {
+	p.deletedInstance = instance
 	if p.mockErr != nil {
 		return p.mockErr
 	}
 	return nil
+}
+
+func (p *testNamedExternalProvider) DeleteInstanceWithName(_ context.Context, instanceID, instanceName string) error {
+	p.deletedInstance = instanceID
+	p.deletedInstanceName = instanceName
+	return p.mockErr
 }
 
 func (p *testExternalProvider) GetInstance(context.Context, string) (params.ProviderInstance, error) {
@@ -412,6 +425,55 @@ func TestRun(t *testing.T) {
 			require.Equal(t, "", out)
 		}
 	}
+}
+
+func TestRunDispatchesNamedDelete(t *testing.T) {
+	for _, instanceName := range []string{"runner-a", ""} {
+		t.Run(fmt.Sprintf("instance name %q", instanceName), func(t *testing.T) {
+			provider := &testNamedExternalProvider{}
+			env := EnvironmentV011{
+				Command:      common.DeleteInstanceCommand,
+				InstanceID:   "vm-01",
+				InstanceName: instanceName,
+			}
+
+			_, err := env.Run(context.Background(), provider)
+			require.NoError(t, err)
+			require.Equal(t, "vm-01", provider.deletedInstance)
+			require.Equal(t, instanceName, provider.deletedInstanceName)
+		})
+	}
+}
+
+func TestRunFallsBackToLegacyDelete(t *testing.T) {
+	provider := &testExternalProvider{}
+	env := EnvironmentV011{
+		Command:      common.DeleteInstanceCommand,
+		InstanceID:   "vm-01",
+		InstanceName: "runner-a",
+	}
+
+	_, err := env.Run(context.Background(), provider)
+	require.NoError(t, err)
+	require.Equal(t, "vm-01", provider.deletedInstance)
+}
+
+func TestGetEnvironmentReadsInstanceName(t *testing.T) {
+	configFile, err := os.CreateTemp("", "provider-config")
+	require.NoError(t, err)
+	require.NoError(t, configFile.Close())
+	t.Cleanup(func() { _ = os.Remove(configFile.Name()) })
+
+	t.Setenv("GARM_COMMAND", string(common.DeleteInstanceCommand))
+	t.Setenv("GARM_CONTROLLER_ID", "controller-a")
+	t.Setenv("GARM_POOL_ID", "pool-a")
+	t.Setenv("GARM_INSTANCE_ID", "vm-01")
+	t.Setenv("GARM_INSTANCE_NAME", "runner-a")
+	t.Setenv("GARM_PROVIDER_CONFIG_FILE", configFile.Name())
+
+	env, err := GetEnvironment()
+	require.NoError(t, err)
+	require.Equal(t, "runner-a", env.InstanceName)
 }
 
 func TestGetEnvironment(t *testing.T) {
